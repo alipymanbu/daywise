@@ -2,78 +2,82 @@
 
 /**
  * @fileOverview Generates an optimized schedule for the user's day based on tasks, deadlines, and priorities.
+ * Uses Firebase AI Logic SDK with Gemini API
  *
  * - suggestOptimizedSchedule - A function that generates an optimized schedule.
  * - SuggestOptimizedScheduleInput - The input type for the suggestOptimizedSchedule function.
  * - SuggestOptimizedScheduleOutput - The return type for the suggestOptimizedSchedule function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { generateStructuredContent } from '@/lib/firebase-ai';
 
-const SuggestOptimizedScheduleInputSchema = z.object({
-  tasks: z.array(
-    z.object({
-      description: z.string().describe('The description of the task.'),
-      deadline: z.string().describe('The deadline for the task (e.g., YYYY-MM-DD HH:MM).'),
-      priority: z.enum(['high', 'medium', 'low']).describe('The priority level of the task.'),
-      estimatedTime: z
-        .number()
-        .describe('The estimated time in minutes required to complete the task.'),
-    })
-  ).describe('The list of tasks to schedule.'),
-  currentTime: z.string().describe('The current time (e.g., YYYY-MM-DD HH:MM).'),
-});
+export type SuggestOptimizedScheduleInput = {
+  tasks: Array<{
+    description: string;
+    deadline: string;
+    priority: 'high' | 'medium' | 'low';
+    estimatedTime: number;
+  }>;
+  currentTime: string;
+};
 
-export type SuggestOptimizedScheduleInput = z.infer<typeof SuggestOptimizedScheduleInputSchema>;
-
-const SuggestOptimizedScheduleOutputSchema = z.object({
-  schedule: z.array(
-    z.object({
-      taskDescription: z.string().describe('The description of the scheduled task.'),
-      startTime: z.string().describe('The suggested start time for the task (e.g., YYYY-MM-DD HH:MM).'),
-      endTime: z.string().describe('The suggested end time for the task (e.g., YYYY-MM-DD HH:MM).'),
-    })
-  ).describe('The optimized schedule for the day.'),
-});
-
-export type SuggestOptimizedScheduleOutput = z.infer<typeof SuggestOptimizedScheduleOutputSchema>;
+export type SuggestOptimizedScheduleOutput = {
+  schedule: Array<{
+    taskDescription: string;
+    startTime: string;
+    endTime: string;
+  }>;
+};
 
 export async function suggestOptimizedSchedule(
   input: SuggestOptimizedScheduleInput
 ): Promise<SuggestOptimizedScheduleOutput> {
-  return suggestOptimizedScheduleFlow(input);
-}
+  // Build the prompt for Gemini API
+  const tasksList = input.tasks
+    .map(
+      (task) =>
+        `- Description: ${task.description}, Deadline: ${task.deadline}, Priority: ${task.priority}, Estimated Time: ${task.estimatedTime} minutes`
+    )
+    .join('\n');
 
-const prompt = ai.definePrompt({
-  name: 'suggestOptimizedSchedulePrompt',
-  input: {schema: SuggestOptimizedScheduleInputSchema},
-  output: {schema: SuggestOptimizedScheduleOutputSchema},
-  prompt: `You are an AI scheduling assistant. Given the current time and a list of tasks with descriptions, deadlines, priorities, and estimated times, generate an optimized schedule for the day.
+  const prompt = `You are an AI scheduling assistant powered by Firebase AI Logic SDK and Gemini API. Given the current time and a list of tasks with descriptions, deadlines, priorities, and estimated times, generate an optimized schedule for the day.
 
-Current Time: {{{currentTime}}}
+Current Time: ${input.currentTime}
 
 Tasks:
-{{#each tasks}}
-- Description: {{{description}}}, Deadline: {{{deadline}}}, Priority: {{{priority}}}, Estimated Time: {{{estimatedTime}}} minutes
-{{/each}}
+${tasksList}
 
-Consider the priority and deadlines when creating the schedule. Higher priority tasks and tasks with earlier deadlines should be scheduled first. Ensure that the total estimated time for all tasks does not exceed the available time in the day. The schedule should be realistic and account for breaks and transitions between tasks.
+Instructions:
+1. Consider the priority and deadlines when creating the schedule
+2. Higher priority tasks and tasks with earlier deadlines should be scheduled first
+3. Ensure that the total estimated time for all tasks does not exceed the available time in the day (assume a standard 8-hour workday starting from current time)
+4. The schedule should be realistic and account for breaks (15-minute breaks between tasks) and transitions
+5. Format times as "HH:MM" (24-hour format) for startTime and endTime
+6. Schedule tasks in chronological order
 
-Output the schedule as a JSON array of objects, where each object has the task description, suggested start time, and suggested end time.
+Return a JSON object with a "schedule" array. Each item in the schedule array should have:
+- taskDescription: The description of the task
+- startTime: The suggested start time (format: "HH:MM")
+- endTime: The suggested end time (format: "HH:MM")`;
 
-Schedule:
-`,
-});
+  const schema = `{
+  "schedule": [
+    {
+      "taskDescription": "string",
+      "startTime": "string (HH:MM format)",
+      "endTime": "string (HH:MM format)"
+    }
+  ]
+}`;
 
-const suggestOptimizedScheduleFlow = ai.defineFlow(
-  {
-    name: 'suggestOptimizedScheduleFlow',
-    inputSchema: SuggestOptimizedScheduleInputSchema,
-    outputSchema: SuggestOptimizedScheduleOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  try {
+    const result = await generateStructuredContent<SuggestOptimizedScheduleOutput>(
+      prompt,
+      schema
+    );
+    return result;
+  } catch (error) {
+    console.error('Error generating schedule with Firebase AI Logic SDK:', error);
+    throw error;
   }
-);
+}

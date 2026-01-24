@@ -36,8 +36,17 @@ export function ScheduleView({ schedule, onGenerate, isPending }: ScheduleViewPr
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>AI Schedule</CardTitle>
         <Button size="sm" onClick={onGenerate} disabled={isPending}>
-          <Zap className="mr-2 h-4 w-4" />
-          Generate
+          {isPending ? (
+            <>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Zap className="mr-2 h-4 w-4" />
+              Generate
+            </>
+          )}
         </Button>
       </CardHeader>
       <CardContent>
