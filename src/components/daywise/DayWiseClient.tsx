@@ -3,29 +3,21 @@
 import * as React from 'react';
 import { generateScheduleAction, getTasksAction, createTaskAction, updateTaskAction, deleteTaskAction } from '@/app/actions';
 import type { ScheduleItem, Task } from '@/lib/types';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'react-toastify';
 import { Logo } from './Icons';
 import { TaskForm } from './TaskForm';
 import { TaskCard } from './TaskCard';
 import { ScheduleView } from './ScheduleView';
 import { CalendarEvents } from './CalendarEvents';
 import { ProgressTracker } from './ProgressTracker';
+import { ThemeToggle } from '@/components/theme-toggle';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { AlertDialog } from '@base-ui/react/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -50,7 +42,10 @@ export default function DayWiseClient() {
   const [taskToDelete, setTaskToDelete] = React.useState<Task | null>(null);
   const [taskToEdit, setTaskToEdit] = React.useState<Task | null>(null);
   const [isEditing, setIsEditing] = React.useState(false);
-  const { toast } = useToast();
+  const notify = (type: 'success' | 'error' | 'info', title: string, description?: string) => {
+    const message = description ? `${title}: ${description}` : title;
+    toast[type](message);
+  };
 
   // Prevent hydration mismatch by only rendering after mount
   React.useEffect(() => {
@@ -65,7 +60,7 @@ export default function DayWiseClient() {
       setIsLoading(true);
       const { tasks: fetchedTasks, error } = await getTasksAction();
       if (error) {
-        toast({ title: 'Error', description: error, variant: 'destructive' });
+        notify('error', 'Error', error);
       } else if (fetchedTasks) {
         setTasks(fetchedTasks);
       }
@@ -79,10 +74,10 @@ export default function DayWiseClient() {
     try {
       const { task, error } = await createTaskAction(taskData);
       if (error) {
-        toast({ title: 'Error', description: error, variant: 'destructive' });
+        notify('error', 'Error', error);
       } else if (task) {
         setTasks((prev) => [...prev, task]);
-        toast({ title: 'Task Added!', description: `"${task.description}" has been added to your list.` });
+        notify('success', 'Task Added!', `"${task.description}" has been added to your list.`);
       }
     } finally {
       setIsAddingTask(false);
@@ -94,7 +89,7 @@ export default function DayWiseClient() {
     try {
       const { task, error } = await updateTaskAction(id, { completed });
       if (error) {
-        toast({ title: 'Error', description: error, variant: 'destructive' });
+        notify('error', 'Error', error);
       } else if (task) {
         setTasks((prev) =>
           prev.map((t) => (t.id === id ? task : t))
@@ -117,10 +112,10 @@ export default function DayWiseClient() {
     try {
       const { success, error } = await deleteTaskAction(id);
       if (error) {
-        toast({ title: 'Error', description: error, variant: 'destructive' });
+        notify('error', 'Error', error);
       } else if (success) {
         setTasks((prev) => prev.filter((task) => task.id !== id));
-        toast({ title: 'Task Removed', description: `"${taskToDelete.description}" has been deleted.`, variant: 'destructive' });
+        notify('success', 'Task Removed', `"${taskToDelete.description}" has been deleted.`);
       }
     } finally {
       setDeletingTaskId(null);
@@ -134,10 +129,10 @@ export default function DayWiseClient() {
       try {
         const { schedule, error } = await generateScheduleAction();
         if (error) {
-          toast({ title: 'Error', description: error, variant: 'destructive' });
+          notify('error', 'Error', error);
         } else if (schedule) {
           setSchedule(schedule);
-          toast({ title: 'Schedule Generated!', description: 'Your AI-optimized schedule is ready.' });
+          notify('success', 'Schedule Generated!', 'Your AI-optimized schedule is ready.');
         }
       } finally {
         setIsGeneratingSchedule(false);
@@ -157,10 +152,10 @@ export default function DayWiseClient() {
     try {
       const { task, error } = await updateTaskAction(taskToEdit.id, taskData);
       if (error) {
-        toast({ title: 'Error', description: error, variant: 'destructive' });
+        notify('error', 'Error', error);
       } else if (task) {
         setTasks((prev) => prev.map((t) => (t.id === taskToEdit.id ? task : t)));
-        toast({ title: 'Task Updated!', description: `"${task.description}" has been updated.` });
+        notify('success', 'Task Updated!', `"${task.description}" has been updated.`);
         setTaskToEdit(null);
         setIsEditing(false);
       }
@@ -235,9 +230,12 @@ export default function DayWiseClient() {
     return (
       <div className="flex flex-col min-h-screen">
         <header className="p-4 border-b bg-card">
-          <div className="container mx-auto flex items-center gap-2">
-            <Logo className="h-8 w-8" />
-            <h1 className="text-2xl font-bold tracking-tight font-headline text-primary">DayWise</h1>
+          <div className="container mx-auto flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Logo className="h-8 w-8" />
+              <h1 className="text-2xl font-bold tracking-tight font-headline text-primary">DayWise</h1>
+            </div>
+            <ThemeToggle />
           </div>
         </header>
         <main className="flex-grow container mx-auto p-4 md:p-8">
@@ -253,9 +251,12 @@ export default function DayWiseClient() {
     <>
       <div className="flex flex-col min-h-screen">
         <header className="p-4 border-b bg-card">
-          <div className="container mx-auto flex items-center gap-2">
-            <Logo className="h-8 w-8" />
-            <h1 className="text-2xl font-bold tracking-tight font-headline text-primary">DayWise</h1>
+          <div className="container mx-auto flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Logo className="h-8 w-8" />
+              <h1 className="text-2xl font-bold tracking-tight font-headline text-primary">DayWise</h1>
+            </div>
+            {mounted ? <ThemeToggle /> : null}
           </div>
         </header>
 
@@ -355,26 +356,29 @@ export default function DayWiseClient() {
         </main>
       </div>
 
-      <AlertDialog open={!!taskToDelete} onOpenChange={(open) => !open && setTaskToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Task</AlertDialogTitle>
-            <AlertDialogDescription>
+      <AlertDialog.Root open={!!taskToDelete} onOpenChange={(open) => !open && setTaskToDelete(null)}>
+        <AlertDialog.Portal>
+          <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-black/60" />
+          <AlertDialog.Popup className="fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%] rounded-lg border bg-background p-6 shadow-lg">
+            <AlertDialog.Title className="text-lg font-semibold">Delete Task</AlertDialog.Title>
+            <AlertDialog.Description className="mt-2 text-sm text-muted-foreground">
               Are you sure you want to delete "{taskToDelete?.description}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteTask}
-              disabled={deletingTaskId === taskToDelete?.id}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deletingTaskId === taskToDelete?.id ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </AlertDialog.Description>
+            <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+              <AlertDialog.Close className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                Cancel
+              </AlertDialog.Close>
+              <AlertDialog.Close
+                className="inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                onClick={confirmDeleteTask}
+                disabled={deletingTaskId === taskToDelete?.id}
+              >
+                {deletingTaskId === taskToDelete?.id ? "Deleting..." : "Delete"}
+              </AlertDialog.Close>
+            </div>
+          </AlertDialog.Popup>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </>
   );
 }
