@@ -30,6 +30,7 @@ import { Filter } from 'lucide-react';
 
 export default function DayWiseClient() {
   const [mounted, setMounted] = React.useState(false);
+  const [userId, setUserId] = React.useState<string | null>(null);
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -52,13 +53,48 @@ export default function DayWiseClient() {
     setMounted(true);
   }, []);
 
-  // Fetch tasks from Firebase on mount
+  // Detect browser/OS and create a stable user id
   React.useEffect(() => {
     if (!mounted) return;
 
+    const getDeviceInfo = () => {
+      const ua = navigator.userAgent || '';
+      const platform = navigator.platform || '';
+      const language = navigator.language || '';
+      const vendor = navigator.vendor || '';
+
+      return { ua, platform, language, vendor };
+    };
+
+    const hashString = (input: string) => {
+      let hash = 0;
+      for (let i = 0; i < input.length; i += 1) {
+        hash = (hash << 5) - hash + input.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash).toString(36);
+    };
+
+    const stored = localStorage.getItem('daywise-user-id');
+    if (stored) {
+      setUserId(stored);
+      return;
+    }
+
+    const info = getDeviceInfo();
+    const fingerprint = `${info.ua}|${info.platform}|${info.language}|${info.vendor}`;
+    const id = `anon_${hashString(fingerprint)}`;
+    localStorage.setItem('daywise-user-id', id);
+    setUserId(id);
+  }, [mounted]);
+
+  // Fetch tasks from Firebase on mount
+  React.useEffect(() => {
+    if (!mounted || !userId) return;
+
     const fetchTasks = async () => {
       setIsLoading(true);
-      const { tasks: fetchedTasks, error } = await getTasksAction();
+      const { tasks: fetchedTasks, error } = await getTasksAction(userId);
       if (error) {
         notify('error', 'Error', error);
       } else if (fetchedTasks) {
@@ -67,12 +103,16 @@ export default function DayWiseClient() {
       setIsLoading(false);
     };
     fetchTasks();
-  }, [mounted, toast]);
+  }, [mounted, userId]);
 
   const handleAddTask = async (taskData: Omit<Task, 'id' | 'completed'>) => {
     setIsAddingTask(true);
     try {
-      const { task, error } = await createTaskAction(taskData);
+      if (!userId) {
+        notify('error', 'Error', 'User ID not ready. Please try again.');
+        return;
+      }
+      const { task, error } = await createTaskAction(taskData, userId);
       if (error) {
         notify('error', 'Error', error);
       } else if (task) {
@@ -127,7 +167,11 @@ export default function DayWiseClient() {
     setIsGeneratingSchedule(true);
     startScheduleTransition(async () => {
       try {
-        const { schedule, error } = await generateScheduleAction();
+        if (!userId) {
+          notify('error', 'Error', 'User ID not ready. Please try again.');
+          return;
+        }
+        const { schedule, error } = await generateScheduleAction(userId);
         if (error) {
           notify('error', 'Error', error);
         } else if (schedule) {
